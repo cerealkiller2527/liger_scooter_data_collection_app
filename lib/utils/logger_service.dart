@@ -3,12 +3,12 @@ import 'package:logger/logger.dart';
 class LoggerService {
   static final Logger _logger = Logger(
     printer: PrettyPrinter(
-      methodCount: 2, // Number of method calls to include in log
-      errorMethodCount: 8, // Number of method calls to include in error logs
-      lineLength: 120, // Maximum length of each log line
+      methodCount: Constants.logMethodCount, // Number of method calls to include in log
+      errorMethodCount: Constants.logErrorMethodCount, // Number of method calls to include in error logs
+      lineLength: Constants.logLineLength, // Maximum length of each log line
       colors: true, // Enable colorful logs
       printEmojis: true, // Include emojis in logs
-      dateTimeFormat: DateTimeFormat.onlyTime, // Replacing the deprecated printTime
+      dateTimeFormat: DateTimeFormat.onlyTime, // Format for displaying time in logs
     ),
   );
 
@@ -24,7 +24,7 @@ class LoggerService {
 
   // Log an error message
   static void error(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.e(message, error: error, stackTrace: stackTrace); // Corrected usage
+    _logger.e(message, error: error, stackTrace: stackTrace);
   }
 
   // Log a debug message
