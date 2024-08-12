@@ -52,6 +52,21 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
     startGeneratingDummyData();
   }
 
+  // Disconnects from the Bluetooth device
+  void disconnectFromDevice() {
+    setState(() {
+      isConnected = false;
+      endTime = DateTime.now(); // Capture end time
+      duration = endTime!.difference(startTime!); // Calculate duration
+    });
+
+    _timer?.cancel(); // Stop generating data
+
+    // Store the session data
+    final sessionData = prepareSessionData();
+    storeSessionData(sessionData);
+  }
+
   // Starts a timer to generate dummy IMU data every second
   void startGeneratingDummyData() {
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
@@ -142,9 +157,22 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton(
-              onPressed: isConnecting ? null : connectToDevice,
-              child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton(
+                  onPressed: isConnecting
+                      ? null
+                      : isConnected
+                          ? null
+                          : connectToDevice,
+                  child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+                ),
+                ElevatedButton(
+                  onPressed: isConnected ? disconnectFromDevice : null,
+                  child: const Text('Disconnect'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             const Text(
