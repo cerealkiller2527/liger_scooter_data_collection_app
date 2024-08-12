@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart' as serial;
-import 'package:permission_handler/permission_handler.dart';
-import 'package:logger/logger.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async'; // Import for using Timer
+import 'dart:math'; // Import for using Random
+import 'package:firebase_auth/firebase_auth.dart'; // Import FirebaseAuth
+import '../models/session_model.dart';
 import '../services/storage_service.dart'; // Local storage service
 import '../services/firebase_service.dart'; // Firebase service
-import '../models/session_model.dart'; // Session model
 import 'login_page.dart'; // Login page for logout
 import 'view_sessions_page.dart'; // Page to view stored sessions
-import 'dart:typed_data';
 
 class BluetoothDataPage extends StatefulWidget {
   const BluetoothDataPage({super.key});
@@ -18,13 +16,9 @@ class BluetoothDataPage extends StatefulWidget {
 }
 
 class BluetoothDataPageState extends State<BluetoothDataPage> {
-  final Logger logger = Logger();
-  serial.BluetoothConnection? connection;
   bool isConnecting = false;
   bool isConnected = false;
   String data = "";
-  serial.BluetoothDevice? selectedDevice;
-  List<serial.BluetoothDevice> devices = [];
   final ScrollController _scrollController = ScrollController();
 
   DateTime? startTime;
@@ -33,110 +27,73 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
 
   final FirebaseService _firebaseService = FirebaseService(); // Firebase service instance
   final StorageService _storageService = StorageService(); // Storage service instance
+  Timer? _timer; // Timer to simulate data reception
 
   @override
   void initState() {
     super.initState();
-    requestPermissions();
   }
 
-  // Requests necessary permissions for Bluetooth and location
-  Future<void> requestPermissions() async {
-    logger.i('Requesting permissions');
-    final permissions = [
-      Permission.bluetooth,
-      Permission.bluetoothConnect,
-      Permission.bluetoothScan,
-      Permission.locationWhenInUse
-    ];
-
-    final statuses = await permissions.request();
-
-    if (statuses[Permission.bluetooth]!.isGranted &&
-        statuses[Permission.bluetoothConnect]!.isGranted &&
-        statuses[Permission.bluetoothScan]!.isGranted &&
-        statuses[Permission.locationWhenInUse]!.isGranted) {
-      logger.i('All permissions granted');
-      scanForDevices();
-    } else {
-      logger.e('Permissions not granted');
-    }
-  }
-
-  // Scans for Bluetooth devices and filters for devices with "Liger" in the name
-  Future<void> scanForDevices() async {
-    try {
-      List<serial.BluetoothDevice> pairedDevices = await serial.FlutterBluetoothSerial.instance.getBondedDevices();
-
-      // Filter devices to only include those with "Liger" in the name
-      devices = pairedDevices.where((device) => device.name != null && device.name!.contains('Liger')).toList();
-
-      setState(() {
-        if (devices.isNotEmpty) {
-          selectedDevice = devices[0];
-        } else {
-          selectedDevice = null;
-        }
-      });
-
-      logger.i('Paired devices with "Liger" in the name: ${devices.map((d) => d.name).toList()}');
-    } catch (e) {
-      logger.e('Error during scanning: $e');
-    }
-  }
-
-  // Connects to the selected Bluetooth device and starts listening for data
+  // Simulates connecting to a Bluetooth device
   Future<void> connectToDevice() async {
-    if (selectedDevice != null) {
+    setState(() {
+      isConnecting = true;
+    });
+
+    await Future.delayed(const Duration(seconds: 2)); // Simulate connection delay
+
+    setState(() {
+      isConnecting = false;
+      isConnected = true;
+      startTime = DateTime.now();  // Capture start time
+    });
+
+    // Start generating dummy IMU data
+    startGeneratingDummyData();
+  }
+
+  // Disconnects from the Bluetooth device
+  void disconnectFromDevice() {
+    setState(() {
+      isConnected = false;
+      endTime = DateTime.now(); // Capture end time
+      duration = endTime!.difference(startTime!); // Calculate duration
+    });
+
+    _timer?.cancel(); // Stop generating data
+
+    // Store the session data
+    final sessionData = prepareSessionData();
+    storeSessionData(sessionData);
+  }
+
+  // Starts a timer to generate dummy IMU data every second
+  void startGeneratingDummyData() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (Timer timer) {
       setState(() {
-        isConnecting = true;
+        // Generate dummy IMU data
+        final imuData = generateDummyIMUData();
+        data += '$imuData\n'; // Use string interpolation
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
       });
-      try {
-        logger.i('Attempting to connect to ${selectedDevice!.name}');
-        serial.BluetoothConnection.toAddress(selectedDevice!.address).then((serial.BluetoothConnection connection) {
-          logger.i('Connected to ${selectedDevice!.name}');
-          this.connection = connection;
-          setState(() {
-            isConnecting = false;
-            isConnected = true;
-            startTime = DateTime.now();  // Capture start time
-          });
+    });
+  }
 
-          this.connection?.input?.listen((Uint8List data) {
-            setState(() {
-              this.data += String.fromCharCodes(data);
-              _scrollController.animateTo(
-                _scrollController.position.maxScrollExtent,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              );
-            });
-          }).onDone(() async {
-            logger.i('Disconnected from ${selectedDevice!.name}');
-            setState(() {
-              isConnected = false;
-              endTime = DateTime.now();  // Capture end time
-              duration = endTime!.difference(startTime!);  // Calculate duration
-            });
+  // Generates dummy IMU data
+  String generateDummyIMUData() {
+    final random = Random();
+    final accelX = (random.nextDouble() * 2 - 1).toStringAsFixed(2);
+    final accelY = (random.nextDouble() * 2 - 1).toStringAsFixed(2);
+    final accelZ = (random.nextDouble() * 2 - 1).toStringAsFixed(2);
+    final gyroX = (random.nextDouble() * 500 - 250).toStringAsFixed(2);
+    final gyroY = (random.nextDouble() * 500 - 250).toStringAsFixed(2);
+    final gyroZ = (random.nextDouble() * 500 - 250).toStringAsFixed(2);
 
-            final sessionData = prepareSessionData();
-            await storeSessionData(sessionData);  // Store the session data
-          });
-        }).catchError((error) {
-          logger.e('Failed to connect: $error');
-          setState(() {
-            isConnecting = false;
-            isConnected = false;
-          });
-        });
-      } catch (e) {
-        logger.e('Error during connection: $e');
-        setState(() {
-          isConnecting = false;
-          isConnected = false;
-        });
-      }
-    }
+    return 'Accel: ($accelX, $accelY, $accelZ), Gyro: ($gyroX, $gyroY, $gyroZ)';
   }
 
   // Prepares the session data for storage
@@ -145,7 +102,7 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
       startTime: startTime!,
       endTime: endTime!,
       duration: duration!.inSeconds,
-      deviceName: selectedDevice?.name ?? "Unknown Device",  // Provide a default value if null
+      deviceName: "Dummy Liger Device",
       receivedData: data,
     );
   }
@@ -160,8 +117,7 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
 
   @override
   void dispose() {
-    connection?.dispose();
-    connection = null;
+    _timer?.cancel(); // Cancel the timer when the widget is disposed
     _scrollController.dispose();
     super.dispose();
   }
@@ -170,7 +126,7 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scooter Bluetooth Data'),
+        title: const Text('Scooter Bluetooth Data (Simulated)'),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -184,12 +140,14 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (!mounted) return;  // Check if mounted before using context
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
+              if (mounted) {
+                await FirebaseAuth.instance.signOut();
+                if (!mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              }
             },
           ),
         ],
@@ -199,25 +157,22 @@ class BluetoothDataPageState extends State<BluetoothDataPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButton<serial.BluetoothDevice>(
-              value: selectedDevice,
-              hint: const Text('Select Liger Device'),
-              onChanged: (serial.BluetoothDevice? device) {
-                setState(() {
-                  selectedDevice = device;
-                });
-              },
-              items: devices.map((serial.BluetoothDevice device) {
-                return DropdownMenuItem<serial.BluetoothDevice>(
-                  value: device,
-                  child: Text(device.name ?? ""),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: isConnecting ? null : connectToDevice,
-              child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton(
+                  onPressed: isConnecting
+                      ? null
+                      : isConnected
+                          ? null
+                          : connectToDevice,
+                  child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+                ),
+                ElevatedButton(
+                  onPressed: isConnected ? disconnectFromDevice : null,
+                  child: const Text('Disconnect'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             const Text(
