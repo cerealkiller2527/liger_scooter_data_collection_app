@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "195982060113",
+    "project_id": "liger-scooter-data-collection",
+    "storage_bucket": "liger-scooter-data-collection.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:195982060113:android:b7e20a689850699882e670",
+        "android_client_info": {
+          "package_name": "com.example.liger_scooter_data_collection_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAUFgwyHDNVlE0pa1XpYaNJODTtgeoaxaQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
